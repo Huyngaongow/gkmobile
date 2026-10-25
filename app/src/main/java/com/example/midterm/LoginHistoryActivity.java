@@ -64,14 +64,14 @@ public class LoginHistoryActivity extends AppCompatActivity {
         rvLoginLogs.setAdapter(adapter);
         db = FirebaseFirestore.getInstance();
 
-        if(userId != null && !userId.isEmpty()){
-            loadLoginLogs(userId);
+        if (username != null && !username.isEmpty()) {
+            loadLoginLogs(username);
         }
     }
 
-    private void loadLoginLogs(String userId){
+    private void loadLoginLogs(String username){
         db.collection("login_logs")
-                .whereEqualTo("userId", userId)
+                .whereEqualTo("username", username)
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
                     logList.clear();

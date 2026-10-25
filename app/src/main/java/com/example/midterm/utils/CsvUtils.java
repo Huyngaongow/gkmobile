@@ -15,6 +15,13 @@ import java.util.List;
 import java.util.Locale;
 
 public class CsvUtils {
+    private static String removeAccents(String str) {
+        if(str == null){
+            return "";
+        }
+        String temp = java.text.Normalizer.normalize(str, java.text.Normalizer.Form.NFD);
+        return temp.replaceAll("\\p{M}+", "").replace('đ', 'd').replace('Đ', 'D').toLowerCase();
+    }
     public static void exportStudentsToCsv(List<Student> studentList, OutputStream outputStream) throws Exception{
         PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
         writer.write('\uFEFF');
@@ -52,8 +59,15 @@ public class CsvUtils {
                 continue;
             }
 
-            if(isHeader){
+            if (isHeader) {
                 isHeader = false;
+                String headerNorm = removeAccents(line);
+
+                if(headerNorm.contains("ten chung chi") || headerNorm.contains("noi cap") || (!headerNorm.contains("ma sv") && !headerNorm.contains("gpa"))){
+                    reader.close();
+                    throw new IllegalArgumentException("File CSV này không chứa nội dung danh sách sinh viên!");
+                }
+
                 continue;
             }
 
@@ -114,8 +128,15 @@ public class CsvUtils {
                 continue;
             }
 
-            if(isHeader){
+            if (isHeader) {
                 isHeader = false;
+                String headerNorm = removeAccents(line);
+
+                if(headerNorm.contains("ma sv") || headerNorm.contains("gpa") || (!headerNorm.contains("ten chung chi") && !headerNorm.contains("noi cap"))){
+                    reader.close();
+                    throw new IllegalArgumentException("File CSV này không chứa nội dung chứng chỉ!");
+                }
+
                 continue;
             }
 

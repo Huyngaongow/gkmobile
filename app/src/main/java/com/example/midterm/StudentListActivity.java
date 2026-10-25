@@ -300,17 +300,57 @@ public class StudentListActivity extends AppCompatActivity implements StudentAda
     );
 
     private void saveImportedStudentsToFirestore(List<Student> importedStudents) {
-        com.google.firebase.firestore.WriteBatch batch = db.batch();
+        db.collection("students").get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    java.util.Set<String> existingCodes = new java.util.HashSet<>();
 
-        for(Student s : importedStudents){
-            String newId = db.collection("students").document().getId();
-            s.setId(newId);
-            batch.set(db.collection("students").document(newId), s);
-        }
+                    for(QueryDocumentSnapshot doc : queryDocumentSnapshots){
+                        String code = doc.getString("studentCode");
 
-        batch.commit()
-                .addOnSuccessListener(aVoid -> Toast.makeText(this, "Đã nhập thành công " + importedStudents.size() + " sinh viên vào hệ thống!", Toast.LENGTH_LONG).show())
-                .addOnFailureListener(e -> Toast.makeText(this, "Lỗi lưu dữ liệu Import: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                        if(code != null){
+                            existingCodes.add(code.toLowerCase());
+                        }
+                    }
+
+                    com.google.firebase.firestore.WriteBatch batch = db.batch();
+                    int addedCount = 0;
+                    int skippedCount = 0;
+                    java.util.Set<String> csvCodesInBatch = new java.util.HashSet<>();
+
+                    for(Student s : importedStudents){
+                        String codeLower = s.getStudentCode() != null ? s.getStudentCode().toLowerCase() : "";
+
+                        if(codeLower.isEmpty() || existingCodes.contains(codeLower) || csvCodesInBatch.contains(codeLower)){
+                            skippedCount++;
+                            continue;
+                        }
+
+                        csvCodesInBatch.add(codeLower);
+                        String newId = db.collection("students").document().getId();
+                        s.setId(newId);
+                        batch.set(db.collection("students").document(newId), s);
+                        addedCount++;
+                    }
+
+                    if(addedCount == 0){
+                        Toast.makeText(this, "Tất cả mã sinh viên trong file CSV đều đã tồn tại (Đã bỏ qua " + skippedCount + " dòng trùng)!", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+
+                    int finalAddedCount = addedCount;
+                    int finalSkippedCount = skippedCount;
+
+                    batch.commit()
+                            .addOnSuccessListener(aVoid -> {
+                                String msg = "Đã nhập thành công " + finalAddedCount + " sinh viên mới!";
+                                if(finalSkippedCount > 0){
+                                    msg += " (Đã bỏ qua " + finalSkippedCount + " mã SV trùng)";
+                                }
+                                Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+                            })
+                            .addOnFailureListener(e -> Toast.makeText(this, "Lỗi lưu dữ liệu: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                })
+                .addOnFailureListener(e -> Toast.makeText(this, "Lỗi kiểm tra dữ liệu cũ: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
 
     private String removeAccents(String str) {

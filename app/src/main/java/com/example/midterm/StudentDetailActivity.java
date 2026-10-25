@@ -217,18 +217,58 @@ public class StudentDetailActivity extends AppCompatActivity implements Certific
             }
     );
 
-    private void saveImportedCertsToFirestore(List<Certificate> importedCerts){
-        com.google.firebase.firestore.WriteBatch batch = db.batch();
+    private void saveImportedCertsToFirestore(List<Certificate> importedCerts) {
+        db.collection("students").document(studentId).collection("certificates").get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    java.util.Set<String> existingTitles = new java.util.HashSet<>();
+                    for(QueryDocumentSnapshot doc : queryDocumentSnapshots){
+                        String title = doc.getString("title");
+                        if(title != null){
+                            existingTitles.add(title.toLowerCase());
+                        }
+                    }
 
-        for(Certificate c : importedCerts){
-            String newId = db.collection("students").document(studentId).collection("certificates").document().getId();
-            c.setId(newId);
-            c.setStudentId(studentId);
-            batch.set(db.collection("students").document(studentId).collection("certificates").document(newId), c);
-        }
+                    com.google.firebase.firestore.WriteBatch batch = db.batch();
+                    int addedCount = 0;
+                    int skippedCount = 0;
+                    java.util.Set<String> csvTitlesInBatch = new java.util.HashSet<>();
 
-        batch.commit()
-                .addOnSuccessListener(aVoid -> Toast.makeText(this, "Đã nhập thành công " + importedCerts.size() + " chứng chỉ!", Toast.LENGTH_LONG).show())
-                .addOnFailureListener(e -> Toast.makeText(this, "Lỗi lưu chứng chỉ: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                    for(Certificate c : importedCerts){
+                        String titleLower = c.getTitle() != null ? c.getTitle().toLowerCase() : "";
+
+                        if(titleLower.isEmpty() || existingTitles.contains(titleLower) || csvTitlesInBatch.contains(titleLower)){
+                            skippedCount++;
+                            continue;
+                        }
+
+                        csvTitlesInBatch.add(titleLower);
+                        String newId = db.collection("students").document(studentId).collection("certificates").document().getId();
+                        c.setId(newId);
+                        c.setStudentId(studentId);
+                        batch.set(db.collection("students").document(studentId).collection("certificates").document(newId), c);
+                        addedCount++;
+                    }
+
+                    if (addedCount == 0) {
+                        Toast.makeText(this, "Tất cả chứng chỉ trong file CSV đều đã tồn tại (Đã bỏ qua " + skippedCount + " dòng trùng)!", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+
+                    int finalAddedCount = addedCount;
+                    int finalSkippedCount = skippedCount;
+
+                    batch.commit()
+                            .addOnSuccessListener(aVoid -> {
+                                String msg = "Đã nhập thành công " + finalAddedCount + " chứng chỉ mới!";
+                                if(finalSkippedCount > 0){
+                                    msg += " (Đã bỏ qua " + finalSkippedCount + " chứng chỉ trùng)";
+                                }
+                                Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+                            })
+                            .addOnFailureListener(e -> {
+                                Toast.makeText(this, "Lỗi lưu dữ liệu: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            });
+                })
+                .addOnFailureListener(e -> Toast.makeText(this, "Lỗi kiểm tra dữ liệu cũ: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
 }

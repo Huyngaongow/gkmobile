@@ -7,6 +7,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 public class AdminInitializer {
     private static final String TAG = "AdminInitializer";
+    private static final String DEFAULT_ADMIN_ID = "admin_default";
 
     public interface OnInitializeListener{
         void onComplete();
@@ -14,14 +15,12 @@ public class AdminInitializer {
 
     public static void initializeAdminIfNeeded(OnInitializeListener listener){
         FirebaseFirestore db = FirebaseFirestore.getInstance();
-        db.collection("users")
-                .whereEqualTo("username", "admin")
+        db.collection("users").document(DEFAULT_ADMIN_ID)
                 .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    if(queryDocumentSnapshots.isEmpty()){
-                        String adminId = db.collection("users").document().getId();
+                .addOnSuccessListener(documentSnapshot -> {
+                    if(!documentSnapshot.exists()){
                         User admin = new User(
-                                adminId,
+                                DEFAULT_ADMIN_ID,
                                 "admin",
                                 "admin123",
                                 "System Administrator",
@@ -32,19 +31,16 @@ public class AdminInitializer {
                                 "",
                                 System.currentTimeMillis()
                         );
-                        db.collection("users").document(adminId)
+
+                        db.collection("users").document(DEFAULT_ADMIN_ID)
                                 .set(admin)
                                 .addOnSuccessListener(aVoid -> {
                                     Log.d(TAG, "Default Admin account created successfully!");
-                                    if (listener != null){
-                                        listener.onComplete();
-                                    }
+                                    if (listener != null) listener.onComplete();
                                 })
                                 .addOnFailureListener(e -> {
-                                    Log.e(TAG, "Failed to create default Admin!", e);
-                                    if (listener != null){
-                                        listener.onComplete();
-                                    }
+                                    Log.e(TAG, "Failed to create default Admin", e);
+                                    if (listener != null) listener.onComplete();
                                 });
                     }
                     else{
